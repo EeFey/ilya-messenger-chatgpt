@@ -10,15 +10,16 @@ let contextQueue: Record<string, string> = {};
 
 const CONTEXT_QUEUE_ENABLED: boolean = process.env.CONTEXT_QUEUE_ENABLED === 'true';
 const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
+const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROLES!);
 
 
-async function getGPTReply(message: string, previousMessage: string){
+async function getGPTReply(chatgptRole: string, message: string, previousMessage: string){
 	const configuration = new Configuration({
 		apiKey: process.env.OPENAI_API_KEY,
 	});
 	const openai = new OpenAIApi(configuration);
 
-	let messages = [{"role": "system", "content": process.env.CHAT_GPT_SYSTEM_INSTRUCTION}];
+	let messages = [{"role": "system", "content": CHATGPT_ROLES[chatgptRole]}];
 	if (CONTEXT_QUEUE_ENABLED && previousMessage) {messages.push({role: "assistant", content: previousMessage})}
 	messages.push({role: "user", content: message})
 
@@ -33,7 +34,7 @@ async function getGPTReply(message: string, previousMessage: string){
 
 function findKeyword(string: string, keywords: string[]){
 	for(var keyword of keywords) {
-		if (string.slice(0, keyword.length).toLowerCase() === keyword) return keyword;
+		if (string.slice(0, keyword.length).toLowerCase() === keyword.toLowerCase()) return keyword;
 	}
 	return null;
 }
@@ -91,7 +92,7 @@ async function run(){
 		api?.markAsRead(message.threadId);
 		setTimeout(() => { api?.markAsRead(message.threadId); }, 3000);
 
-		const keywords = ["ilya", "illya"]
+		const keywords = Object.keys(CHATGPT_ROLES);
 		const matchedKeyword = findKeyword(message.body, keywords);
 		if (matchedKeyword === null) return;
 
@@ -113,7 +114,7 @@ async function run(){
 			api?.markAsRead(message.threadId);
 			return
 		}
-		getGPTReply(question, contextQueue[message.threadId]).then((chatgptReply) => {
+		getGPTReply(matchedKeyword, question, contextQueue[message.threadId]).then((chatgptReply) => {
 			console.log(message.threadId, " A:", chatgptReply);
 			contextQueue[message.threadId] = chatgptReply;
 
