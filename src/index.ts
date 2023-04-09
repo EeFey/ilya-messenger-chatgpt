@@ -46,9 +46,9 @@ function removeKeyword(string: string, keyword: string){
 	return string;
 }
 
-function cookieToAppState(cookies: string){
-	var cookiesJSON = JSON.parse(cookies);
-	cookiesJSON.cookies.forEach((item: any) => {
+function cookiesToAppState(cookies: string){
+	var cookiesJSON = JSON.parse(cookies).cookies;
+	cookiesJSON.forEach((item: any) => {
 		item.key = item.name;
 		delete item.name;
 	});
@@ -61,9 +61,10 @@ function delay(ms: number) {
 
 async function run(){
 	try {
-		if (process.env.FB_COOKIE == undefined) return;
+		if (process.env.FB_COOKIES == undefined) return;
 		console.log("Use cookies to login");
-		const appState = cookieToAppState(JSON.parse(process.env.FB_COOKIE));
+		const appState = cookiesToAppState(process.env.FB_COOKIES);
+		console.log(appState);
 		api = (await facebookLogin({appState: appState}, {} )) as Api;
 	} catch (error) {
 		console.log(error);
