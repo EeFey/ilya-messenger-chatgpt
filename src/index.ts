@@ -64,7 +64,6 @@ async function run(){
 		if (process.env.FB_COOKIES == undefined) return;
 		console.log("Use cookies to login");
 		const appState = cookiesToAppState(process.env.FB_COOKIES);
-		console.log(appState);
 		api = (await facebookLogin({appState: appState}, {} )) as Api;
 	} catch (error) {
 		console.log(error);
