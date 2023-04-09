@@ -14,7 +14,7 @@ const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
 
 async function getGPTReply(message: string, previousMessage: string){
 	const configuration = new Configuration({
-		apiKey: process.env.OPENAI_KEY,
+		apiKey: process.env.OPENAI_API_KEY,
 	});
 	const openai = new OpenAIApi(configuration);
 
