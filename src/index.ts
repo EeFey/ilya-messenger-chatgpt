@@ -60,8 +60,9 @@ function delay(ms: number) {
 }
 
 async function run(){
+
 	try {
-		if (process.env.FB_COOKIES == undefined) return;
+		if (process.env.FB_COOKIES == undefined) throw Error('FB_COOKIES undefined. Credentials will be used');
 		console.log("Use cookies to login");
 		const appState = cookiesToAppState(process.env.FB_COOKIES);
 		api = (await facebookLogin({appState: appState}, {} )) as Api;
