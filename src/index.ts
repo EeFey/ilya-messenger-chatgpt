@@ -88,6 +88,10 @@ async function run(){
 	}
 	if (!api.isActive() || !api.listener) throw Error('Unable to establish connection to Facebook.');
 
+	api.listener.addListener('error', (error) => {
+	  console.log(error);
+	});
+
 	api.listener.addListener('message', async (message) => {
 		api?.markAsRead(message.threadId);
 		setTimeout(() => { api?.markAsRead(message.threadId); }, 3000);
