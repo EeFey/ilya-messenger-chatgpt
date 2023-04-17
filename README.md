@@ -2,7 +2,7 @@
 Easily convert a personal Facebook account into an auto reply chat bot using ChatGPT.
 
 <p align="left" width="100%">
-    <img width="20%" src="https://user-images.githubusercontent.com/16509521/232497451-9baab52c-749d-4e5c-b50e-b62147c13dbe.png"> 
+    <img width="400px" src="https://user-images.githubusercontent.com/16509521/232497451-9baab52c-749d-4e5c-b50e-b62147c13dbe.png"> 
 </p>
 
 ## Quick setup
