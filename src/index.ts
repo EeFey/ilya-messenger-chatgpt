@@ -8,9 +8,13 @@ let api: Api | null = null;
 let lastAnswered: Date = new Date();
 let contextQueue: Record<string, string> = {};
 
+const CHATGPT_MAX_TOKENS: number = parseInt(process.env.CHATGPT_MAX_TOKENS!);
+const CHATGPT_TEMPERATURE: number = parseFloat(process.env.CHATGPT_TEMPERATURE!);
+const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROLES!);
+
 const CONTEXT_QUEUE_ENABLED: boolean = process.env.CONTEXT_QUEUE_ENABLED === 'true';
 const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
-const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROLES!);
+const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
 
 
 async function getGPTReply(chatgptRole: string, message: string, previousMessage: string){
@@ -24,9 +28,9 @@ async function getGPTReply(chatgptRole: string, message: string, previousMessage
 	messages.push({role: "user", content: message})
 
 	const completion = await openai.createChatCompletion({
-		model: "gpt-3.5-turbo",
-		temperature: 1.1,
-		max_tokens: 384,
+		model: process.env.CHATGPT_MODEL,
+		temperature: CHATGPT_TEMPERATURE,
+		max_tokens: CHATGPT_MAX_TOKENS,
 		messages: messages,
 	});
 	return Promise.resolve(completion.data.choices[0].message.content);
@@ -60,7 +64,7 @@ function delay(ms: number) {
   return new Promise( resolve => setTimeout(resolve, ms) );
 }
 
-async function run(){
+async function main(){
 
 	try {
 		if (process.env.FB_COOKIES == undefined) throw Error('FB_COOKIES undefined. Credentials will be used');
@@ -113,8 +117,8 @@ async function run(){
 			api?.markAsRead(message.threadId);
 			return
 		}
-		if (question.length > 512) {
-			api?.sendMessage({ body: "Too long! Lazy to read." }, message.threadId);
+		if (question.length > MAX_REQUEST_LENGTH) {
+			api?.sendMessage({ body: "Your question is too long!" }, message.threadId);
 			api?.markAsRead(message.threadId);
 			return
 		}
@@ -130,4 +134,4 @@ async function run(){
 	});
 
 }
-run();
+main();
