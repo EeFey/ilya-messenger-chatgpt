@@ -64,25 +64,29 @@ function delay(ms: number) {
   return new Promise( resolve => setTimeout(resolve, ms) );
 }
 
-async function main(){
-
+async function getFbLogin() {
 	try {
 		if (process.env.FB_COOKIES == undefined) throw Error('FB_COOKIES undefined. Credentials will be used');
 		console.log("Use cookies to login");
 		const appState = cookiesToAppState(process.env.FB_COOKIES);
 		api = (await facebookLogin({appState: appState}, {} )) as Api;
+		return Promise.resolve(api);
 	} catch (error) {
 		console.log(error);
 	};
-  
-	if(!api) {
+	
+	try {
 		console.log("Use credentials to login");
-		try {
-			api = (await facebookLogin({ email: process.env.FB_EMAIL, password: process.env.FB_PASSWORD }, {})) as Api;
-		} catch (error) {
-			console.log(error);
-		}
+		api = (await facebookLogin({ email: process.env.FB_EMAIL, password: process.env.FB_PASSWORD }, {})) as Api;
+		return Promise.resolve(api);
+	} catch (error) {
+		console.log(error);
 	}
+	return null;
+}
+
+async function fbListen(){
+	api = await getFbLogin();
 	if (!api) throw Error('Unable to establish connection to Facebook.');
 
 	try {
@@ -132,6 +136,6 @@ async function main(){
 			console.log(error);
 		});
 	});
-
 }
-main();
+
+fbListen();
