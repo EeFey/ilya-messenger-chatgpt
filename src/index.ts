@@ -15,8 +15,7 @@ const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROL
 const CONTEXT_QUEUE_ENABLED: boolean = process.env.CONTEXT_QUEUE_ENABLED === 'true';
 const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
 const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
-
-
+const FB_CHECK_ACTIVE_EVERY: number = parseInt(process.env.FB_CHECK_ACTIVE_EVERY!);
 
 async function getGPTReply(chatgptRole: string, message: string, previousMessage: string){
 	const configuration = new Configuration({
@@ -141,15 +140,8 @@ async function fbListen(){
 
 fbListen();
 setInterval((): void => {
-	console.log("check listener");
-	console.log(new Date().getTime());
-	// console.log(lastAnswered.getTime());
-	// console.log(new Date().getTime() - lastAnswered.getTime());
-	// if (new Date().getTime() - lastAnswered.getTime() < 60 * 60000) return;
-	if (!api?.isActive()){
-		console.log("api is not active, trying to restart");
-		api?.stopListening();
-		// api?.logout();
-		fbListen();
-	}
-}, 60 * 60000);
+	if (api?.isActive()) return;
+	console.log("FB api is not active, trying to restart");
+	api?.stopListening();
+	fbListen();
+}, FB_CHECK_ACTIVE_EVERY);
