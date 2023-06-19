@@ -141,6 +141,12 @@ async function fbListen(){
 fbListen();
 setInterval((): void => {
 	console.log("Running check if FB api is active");
+	console.log(api);
+	api?.getUserInfo([api.ctx.userID]).then((userInfo) => {
+		console.log(userInfo);
+	}).catch((error) => {
+		console.log(error);
+	});
 	if (api?.isActive()) return;
 	console.log("FB api is not active, trying to restart");
 	api?.stopListening();
