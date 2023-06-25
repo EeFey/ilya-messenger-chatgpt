@@ -143,6 +143,7 @@ setInterval((): void => {
 	console.log("Running check if FB api is active");
 	api?.getUserInfo([api.ctx.userID]).then((userInfo) => {
 		console.log("success");
+		console.log(userInfo);
 	}).catch((error) => {
 		console.log("failed");
 	});
