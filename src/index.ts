@@ -1,12 +1,15 @@
 
 require('dotenv').config()
 const { Configuration, OpenAIApi } = require("openai");
+import { EventEmitter } from 'events';
 import facebookLogin from 'ts-messenger-api';
 import Api from 'ts-messenger-api/dist/lib/api'
 
 let api: Api | null = null;
+let listener: EventEmitter | undefined = undefined;
 let lastAnswered: Date = new Date();
 let contextQueue: Record<string, string> = {};
+let retryLoginCount: number = 0;
 
 const CHATGPT_MAX_TOKENS: number = parseInt(process.env.CHATGPT_MAX_TOKENS!);
 const CHATGPT_TEMPERATURE: number = parseFloat(process.env.CHATGPT_TEMPERATURE!);
@@ -15,9 +18,9 @@ const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROL
 const CONTEXT_QUEUE_ENABLED: boolean = process.env.CONTEXT_QUEUE_ENABLED === 'true';
 const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
 const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
+const FB_CHECK_ACTIVE_EVERY: number = parseInt(process.env.FB_CHECK_ACTIVE_EVERY!);
 
-
-async function getGPTReply(chatgptRole: string, message: string, previousMessage: string){
+const getGPTReply = async (chatgptRole: string, message: string, previousMessage: string) => {
 	const configuration = new Configuration({
 		apiKey: process.env.OPENAI_API_KEY,
 	});
@@ -36,14 +39,14 @@ async function getGPTReply(chatgptRole: string, message: string, previousMessage
 	return Promise.resolve(completion.data.choices[0].message.content);
 }
 
-function findKeyword(string: string, keywords: string[]){
+const findKeyword = (string: string, keywords: string[]) => {
 	for(var keyword of keywords) {
 		if (string.slice(0, keyword.length).toLowerCase() === keyword.toLowerCase()) return keyword;
 	}
 	return null;
 }
 
-function removeKeyword(string: string, keyword: string){
+const removeKeyword = (string: string, keyword: string) => {
 	string = string.slice(keyword.length);
 	while([",", ".", " "].includes(string.charAt(0))){
 		string = string.slice(1);
@@ -51,7 +54,7 @@ function removeKeyword(string: string, keyword: string){
 	return string;
 }
 
-function cookiesToAppState(cookies: string){
+const cookiesToAppState = (cookies: string) => {
 	var cookiesJSON = JSON.parse(cookies).cookies;
 	cookiesJSON.forEach((item: any) => {
 		item.key = item.name;
@@ -60,17 +63,18 @@ function cookiesToAppState(cookies: string){
 	return cookiesJSON;
 }
 
-function delay(ms: number) {
+const delay = (ms: number) => {
   return new Promise( resolve => setTimeout(resolve, ms) );
 }
 
-async function getFbLogin() {
+const getFbLogin = async () => {
+	api = null;
 	try {
 		if (process.env.FB_COOKIES == undefined) throw Error('FB_COOKIES undefined. Credentials will be used');
 		console.log("Use cookies to login");
 		const appState = cookiesToAppState(process.env.FB_COOKIES);
 		api = (await facebookLogin({appState: appState}, {} )) as Api;
-		return Promise.resolve(api);
+		return api;
 	} catch (error) {
 		console.log(error);
 	};
@@ -78,29 +82,42 @@ async function getFbLogin() {
 	try {
 		console.log("Use credentials to login");
 		api = (await facebookLogin({ email: process.env.FB_EMAIL, password: process.env.FB_PASSWORD }, {})) as Api;
-		return Promise.resolve(api);
+		return api;
 	} catch (error) {
 		console.log(error);
 	}
 	return null;
 }
 
-async function fbListen(){
+const fbLogin = async () => {
 	api = await getFbLogin();
-	if (!api) throw Error('Unable to establish connection to Facebook.');
+	if (!api) throw Error('fbLogin: Unable to establish connection to Facebook.');
+}
 
+const fbListen = async () => {
+	listener?.removeAllListeners();
+	
 	try {
-		await api.listen();
+		listener = await api?.listen();
 	} catch (error) {
 		console.log(error);
 	}
-	if (!api.isActive() || !api.listener) throw Error('Unable to establish connection to Facebook.');
+	if (!api?.isActive() || !listener) throw Error('fbListen: Unable to establish connection to Facebook.');
 
-	api.listener.addListener('error', (error) => {
+	listener?.addListener('error', (error) => {
 	  console.log(error);
 	});
 
-	api.listener.addListener('message', async (message) => {
+	listener?.addListener('presence', (presence) => {
+	  console.log("presence", presence);
+	});
+
+	listener?.addListener('close', (close) => {
+	  console.log("close", close);
+	});
+
+	listener?.addListener('message', async (message) => {
+		console.log(message.body);
 		api?.markAsRead(message.threadId);
 		setTimeout(() => { api?.markAsRead(message.threadId); }, 3000);
 
@@ -138,4 +155,36 @@ async function fbListen(){
 	});
 }
 
-fbListen();
+const fb_check_active_interval = setInterval((): void => {
+	console.log("Checking if FB api is active");
+	restartListener();
+}, FB_CHECK_ACTIVE_EVERY);
+
+const catchErrors = (fn: any) => {
+	console.log(fn);
+	console.log("Caught Error, will retry to login again");
+	if (retryLoginCount >= 3) {
+		console.log("Exceeded 3 login attempt. Gracefully exiting");
+		clearInterval(fb_check_active_interval);
+	}
+	retryLoginCount += 1;
+};
+
+const restartListener = async () => {
+	try {
+		if (!api?.isActive()) {
+			console.log("FB api is not active, trying to login");
+			api?.stopListening();
+			await fbLogin();
+		}
+		await fbListen();
+		retryLoginCount = 0;
+	}
+	catch (error) {
+		catchErrors(error);
+	}
+}
+
+restartListener();
+
+setInterval((): void => { if(1<0) return; }, 86400000);
