@@ -19,8 +19,9 @@ const CONTEXT_QUEUE_ENABLED: boolean = process.env.CONTEXT_QUEUE_ENABLED === 'tr
 const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
 const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
 const FB_CHECK_ACTIVE_EVERY: number = parseInt(process.env.FB_CHECK_ACTIVE_EVERY!);
+const AUTO_REPLY_CHANCE: number = parseFloat(process.env.AUTO_REPLY_CHANCE!);
 
-const getGPTReply = async (chatgptRole: string, message: string, previousMessage: string) => {
+const getGPTReply = async (chatgptRole: string, message: string, previousMessage: string | null) => {
 	const configuration = new Configuration({
 		apiKey: process.env.OPENAI_API_KEY,
 	});
@@ -36,7 +37,7 @@ const getGPTReply = async (chatgptRole: string, message: string, previousMessage
 		max_tokens: CHATGPT_MAX_TOKENS,
 		messages: messages,
 	});
-	return Promise.resolve(completion.data.choices[0].message.content);
+	return completion.data.choices[0].message.content;
 }
 
 const findKeyword = (string: string, keywords: string[]) => {
@@ -46,7 +47,8 @@ const findKeyword = (string: string, keywords: string[]) => {
 	return null;
 }
 
-const removeKeyword = (string: string, keyword: string) => {
+const removeKeyword = (string: string, keyword: string | null) => {
+	if (keyword === null) return string;
 	string = string.slice(keyword.length);
 	while([",", ".", " "].includes(string.charAt(0))){
 		string = string.slice(1);
@@ -123,7 +125,9 @@ const fbListen = async () => {
 
 		const keywords = Object.keys(CHATGPT_ROLES);
 		const matchedKeyword = findKeyword(message.body, keywords);
-		if (matchedKeyword === null) return;
+		
+		const autoReply = Math.random() < AUTO_REPLY_CHANCE;
+		if (matchedKeyword === null && !autoReply) return;
 
 		const question = removeKeyword(message.body, matchedKeyword);
 		console.log(message.threadId, " Q:", question);
@@ -143,7 +147,11 @@ const fbListen = async () => {
 			api?.markAsRead(message.threadId);
 			return
 		}
-		getGPTReply(matchedKeyword, question, contextQueue[message.threadId]).then((chatgptReply) => {
+
+		const chatgptRole = matchedKeyword === null ? Object.keys(CHATGPT_ROLES)[0] : matchedKeyword;
+		const previousMessage = matchedKeyword === null ? null : contextQueue[message.threadId];
+
+		getGPTReply(chatgptRole, question, previousMessage).then((chatgptReply) => {
 			console.log(message.threadId, " A:", chatgptReply);
 			contextQueue[message.threadId] = chatgptReply;
 
