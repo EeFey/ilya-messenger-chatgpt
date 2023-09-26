@@ -5,11 +5,15 @@ import { EventEmitter } from 'events';
 import facebookLogin from 'ts-messenger-api';
 import Api from 'ts-messenger-api/dist/lib/api'
 
+import { ThreadMessageQueue } from './utils/ThreadMessageQueue';
+
 let api: Api | null = null;
 let listener: EventEmitter | undefined = undefined;
 let lastAnswered: Date = new Date();
 let contextQueue: Record<string, string> = {};
 let retryLoginCount: number = 0;
+
+const threadMsgQueue = new ThreadMessageQueue(5);
 
 const CHATGPT_MAX_TOKENS: number = parseInt(process.env.CHATGPT_MAX_TOKENS!);
 const CHATGPT_TEMPERATURE: number = parseFloat(process.env.CHATGPT_TEMPERATURE!);
@@ -120,6 +124,7 @@ const fbListen = async () => {
 
 	listener?.addListener('message', async (message) => {
 		console.log(message.body);
+		threadMsgQueue.enqueue(message.threadId, message.body);
 		api?.markAsRead(message.threadId);
 		setTimeout(() => { api?.markAsRead(message.threadId); }, 3000);
 
@@ -150,8 +155,9 @@ const fbListen = async () => {
 
 		const chatgptRole = matchedKeyword === null ? Object.keys(CHATGPT_ROLES)[0] : matchedKeyword;
 		const previousMessage = matchedKeyword === null ? null : contextQueue[message.threadId];
+		const gptQuestion = matchedKeyword === null ? autoReplyPrompt(message.threadId) : question;
 
-		getGPTReply(chatgptRole, question, previousMessage).then((chatgptReply) => {
+		getGPTReply(chatgptRole, gptQuestion, previousMessage).then((chatgptReply) => {
 			console.log(message.threadId, " A:", chatgptReply);
 			contextQueue[message.threadId] = chatgptReply;
 
@@ -161,6 +167,10 @@ const fbListen = async () => {
 			console.log(error);
 		});
 	});
+}
+
+const autoReplyPrompt = (threadId: string) => {
+	return "The following are chat history from oldest to latest, and you will reply as yourself in a sentence. " + threadMsgQueue.getMessageQueueInString(threadId);
 }
 
 const fb_check_active_interval = setInterval((): void => {
