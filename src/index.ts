@@ -77,6 +77,13 @@ const delay = (ms: number) => {
   return new Promise( resolve => setTimeout(resolve, ms) );
 }
 
+const autoReplyChance = (message: string) => {
+	const wordCountBase = 10;
+	const wordCount = message.split(/\s+/).length;
+	const wordChance = Math.max(Math.min(wordCount / wordCountBase, 1), 0.1);
+	return wordChance * AUTO_REPLY_CHANCE;
+}
+
 const getFbLogin = async () => {
 	api = null;
 	try {
@@ -136,9 +143,9 @@ const fbListen = async () => {
 
 		const keywords = Object.keys(CHATGPT_ROLES);
 		const matchedKeyword = findKeyword(message.body, keywords);
-		
-		const autoReply = Math.random() < AUTO_REPLY_CHANCE;
-		if (matchedKeyword === null && !autoReply) return;
+
+		const autoReply = Math.random() < autoReplyChance(message.body);
+		if (!matchedKeyword && !autoReply) return;
 
 		const question = removeKeyword(message.body, matchedKeyword);
 		console.log(message.threadId, " Q:", question);
@@ -159,9 +166,9 @@ const fbListen = async () => {
 			return
 		}
 
-		const chatgptRole = matchedKeyword === null ? Object.keys(CHATGPT_ROLES)[0] : matchedKeyword;
-		const messageQueue = matchedKeyword === null ? threadMsgQueue.getAllMessagesFromThread(message.threadId) : threadAnsQueue.getAllMessagesFromThread(message.threadId);
-		const gptQuestion = matchedKeyword === null ? null : question;
+		const chatgptRole = matchedKeyword ? matchedKeyword : Object.keys(CHATGPT_ROLES)[0]
+		const messageQueue = (matchedKeyword ? threadAnsQueue : threadMsgQueue).getAllMessagesFromThread(message.threadId);
+		const gptQuestion = matchedKeyword ? question : null;
 
 		getGPTReply(chatgptRole, gptQuestion, messageQueue).then((chatgptReply) => {
 			console.log(message.threadId, " A:", chatgptReply);
