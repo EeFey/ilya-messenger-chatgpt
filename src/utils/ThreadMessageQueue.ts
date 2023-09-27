@@ -1,81 +1,67 @@
 import { MessageQueue } from './MessageQueue';
+import { Message } from '../interfaces/Message';
 
 export class ThreadMessageQueue {
   private threadQueues: Map<string, MessageQueue> = new Map();
-  private maxLength: number;
+  private maxQueueSize: number;
+  private maxMessageLength: number;
 
-  constructor(maxLength: number) {
-    if (maxLength <= 0) {
-      throw new Error("Max length must be greater than zero");
+  constructor(maxQueueSize: number, maxMessageLength: number = Number.MAX_SAFE_INTEGER) {
+    if (maxQueueSize < 0) {
+      throw new Error("Max queue size must be non-negative");
     }
-    this.maxLength = maxLength;
+    this.maxQueueSize = maxQueueSize;
+    this.maxMessageLength = maxMessageLength;
   }
 
-  // Enqueue a message for a specific thread
-  enqueue(threadId: string, message: string): void {
+  enqueueMessageToThread(threadId: string, message: Message): void {
     let queue = this.threadQueues.get(threadId);
 
-    // If the queue doesn't exist for the thread, create it
     if (!queue) {
-      queue = new MessageQueue(this.maxLength);
+      queue = new MessageQueue(this.maxQueueSize, this.maxMessageLength);
       this.threadQueues.set(threadId, queue);
     }
 
-    // Enqueue the message in the thread's queue
-    queue.enqueue(message);
+    queue.enqueueMessage(message);
   }
 
-  // Dequeue a message for a specific thread
-  dequeue(threadId: string): string | undefined {
+  dequeueMessageFromThread(threadId: string): Message | undefined {
     const queue = this.threadQueues.get(threadId);
 
     if (queue) {
-      return queue.dequeue();
+      return queue.dequeueMessage();
     }
 
-    return undefined; // Thread queue doesn't exist
+    return undefined;
   }
 
-  // Get the size of the message queue for a specific thread
-  size(threadId: string): number {
+  messageCountForThread(threadId: string): number {
     const queue = this.threadQueues.get(threadId);
 
     if (queue) {
-      return queue.size();
+      return queue.messageCount();
     }
 
-    return 0; // Thread queue doesn't exist
+    return 0;
   }
 
-  // Check if the message queue for a specific thread is empty
-  isEmpty(threadId: string): boolean {
+  isThreadQueueEmpty(threadId: string): boolean {
     const queue = this.threadQueues.get(threadId);
 
     if (queue) {
-      return queue.isEmpty();
+      return queue.isQueueEmpty();
     }
 
-    return true; // Thread queue doesn't exist
+    return true;
   }
 
-  // Get the entire queue for a specific thread
-  getMessageQueue(threadId: string): string[] | undefined {
+  getAllMessagesFromThread(threadId: string): Message[] | undefined {
     const queue = this.threadQueues.get(threadId);
 
     if (queue) {
       return queue.getAllMessages();
     }
 
-    return undefined; // Thread queue doesn't exist
-  }
-
-  getMessageQueueInString(threadId: string): string | undefined {
-    const queue = this.threadQueues.get(threadId);
-
-    if (queue) {
-      return queue.getAllMessages().join(". ");
-    }
-
-    return undefined; // Thread queue doesn't exist
+    return undefined;
   }
 }

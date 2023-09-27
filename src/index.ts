@@ -1,39 +1,43 @@
 
 require('dotenv').config()
-const { Configuration, OpenAIApi } = require("openai");
+
 import { EventEmitter } from 'events';
 import facebookLogin from 'ts-messenger-api';
 import Api from 'ts-messenger-api/dist/lib/api'
 
 import { ThreadMessageQueue } from './utils/ThreadMessageQueue';
+import { Message } from './interfaces/Message';
 
-let api: Api | null = null;
-let listener: EventEmitter | undefined = undefined;
-let lastAnswered: Date = new Date();
-let contextQueue: Record<string, string> = {};
-let retryLoginCount: number = 0;
-
-const threadMsgQueue = new ThreadMessageQueue(5);
+const { Configuration, OpenAIApi } = require("openai");
 
 const CHATGPT_MAX_TOKENS: number = parseInt(process.env.CHATGPT_MAX_TOKENS!);
 const CHATGPT_TEMPERATURE: number = parseFloat(process.env.CHATGPT_TEMPERATURE!);
 const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROLES!);
 
-const CONTEXT_QUEUE_ENABLED: boolean = process.env.CONTEXT_QUEUE_ENABLED === 'true';
+const MESSAGE_QUEUE_SIZE: number = parseInt(process.env.MESSAGE_QUEUE_SIZE!);
+const ANSWER_QUEUE_SIZE: number = parseInt(process.env.ANSWER_QUEUE_SIZE!);
 const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
 const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
 const FB_CHECK_ACTIVE_EVERY: number = parseInt(process.env.FB_CHECK_ACTIVE_EVERY!);
 const AUTO_REPLY_CHANCE: number = parseFloat(process.env.AUTO_REPLY_CHANCE!);
 
-const getGPTReply = async (chatgptRole: string, message: string, previousMessage: string | null) => {
+let api: Api | null = null;
+let listener: EventEmitter | undefined = undefined;
+let lastAnswered: Date = new Date();
+let retryLoginCount: number = 0;
+
+const threadMsgQueue = new ThreadMessageQueue(MESSAGE_QUEUE_SIZE, MAX_REQUEST_LENGTH);
+const threadAnsQueue = new ThreadMessageQueue(ANSWER_QUEUE_SIZE);
+
+const getGPTReply = async (chatgptRole: string, message?: string | null, messageQueue?: Message[] | null) => {
 	const configuration = new Configuration({
 		apiKey: process.env.OPENAI_API_KEY,
 	});
 	const openai = new OpenAIApi(configuration);
 
 	let messages = [{"role": "system", "content": CHATGPT_ROLES[chatgptRole]}];
-	if (CONTEXT_QUEUE_ENABLED && previousMessage) {messages.push({role: "assistant", content: previousMessage})}
-	messages.push({role: "user", content: message})
+	if (messageQueue) messages = messages.concat(messageQueue);
+	if (message) messages.push({role: "user", content: message});
 
 	const completion = await openai.createChatCompletion({
 		model: process.env.CHATGPT_MODEL,
@@ -124,9 +128,11 @@ const fbListen = async () => {
 
 	listener?.addListener('message', async (message) => {
 		console.log(message.body);
-		threadMsgQueue.enqueue(message.threadId, message.body);
+
 		api?.markAsRead(message.threadId);
 		setTimeout(() => { api?.markAsRead(message.threadId); }, 3000);
+
+		threadMsgQueue.enqueueMessageToThread(message.threadId, {role: "user", content: message.body});
 
 		const keywords = Object.keys(CHATGPT_ROLES);
 		const matchedKeyword = findKeyword(message.body, keywords);
@@ -154,12 +160,12 @@ const fbListen = async () => {
 		}
 
 		const chatgptRole = matchedKeyword === null ? Object.keys(CHATGPT_ROLES)[0] : matchedKeyword;
-		const previousMessage = matchedKeyword === null ? null : contextQueue[message.threadId];
-		const gptQuestion = matchedKeyword === null ? autoReplyPrompt(message.threadId) : question;
+		const messageQueue = matchedKeyword === null ? threadMsgQueue.getAllMessagesFromThread(message.threadId) : threadAnsQueue.getAllMessagesFromThread(message.threadId);
+		const gptQuestion = matchedKeyword === null ? null : question;
 
-		getGPTReply(chatgptRole, gptQuestion, previousMessage).then((chatgptReply) => {
+		getGPTReply(chatgptRole, gptQuestion, messageQueue).then((chatgptReply) => {
 			console.log(message.threadId, " A:", chatgptReply);
-			contextQueue[message.threadId] = chatgptReply;
+			threadAnsQueue.enqueueMessageToThread(message.threadId, {role: "assistant", content: chatgptReply});
 
 			api?.sendMessage({ body: chatgptReply }, message.threadId);
 			api?.markAsRead(message.threadId);
@@ -167,10 +173,6 @@ const fbListen = async () => {
 			console.log(error);
 		});
 	});
-}
-
-const autoReplyPrompt = (threadId: string) => {
-	return "The following are chat history from oldest to latest, and you will reply as yourself in a sentence. " + threadMsgQueue.getMessageQueueInString(threadId);
 }
 
 const fb_check_active_interval = setInterval((): void => {

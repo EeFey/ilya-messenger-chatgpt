@@ -1,34 +1,42 @@
-export class MessageQueue {
-  private messages: string[] = [];
-  private maxLength: number;
+import { Message } from '../interfaces/Message';
 
-  constructor(maxLength: number) {
-    if (maxLength <= 0) {
-      throw new Error("Max length must be greater than zero");
+export class MessageQueue {
+  private messages: Message[] = [];
+  private maxQueueSize: number;
+  private maxMessageLength: number;
+
+  constructor(maxQueueSize: number, maxMessageLength: number = Number.MAX_SAFE_INTEGER) {
+    if (maxQueueSize < 0) {
+      throw new Error("Max queue size must be non-negative");
     }
-    this.maxLength = maxLength;
+    this.maxQueueSize = maxQueueSize;
+    this.maxMessageLength = maxMessageLength;
   }
 
-  enqueue(item: string): void {
-    if (this.messages.length >= this.maxLength) {
-      this.messages.shift(); // Remove the oldest item if the queue is full
+  enqueueMessage(item: Message): void {
+    if (this.maxQueueSize === 0 || item.content.length > this.maxMessageLength) {
+      return;
+    }
+
+    if (this.messages.length >= this.maxQueueSize) {
+      this.messages.shift();
     }
     this.messages.push(item);
   }
 
-  dequeue(): string | undefined {
+  dequeueMessage(): Message | undefined {
     return this.messages.shift();
   }
 
-  size(): number {
+  messageCount(): number {
     return this.messages.length;
   }
 
-  isEmpty(): boolean {
+  isQueueEmpty(): boolean {
     return this.messages.length === 0;
   }
 
-  getAllMessages(): string[] {
+  getAllMessages(): Message[] {
     return this.messages;
   }
 }
