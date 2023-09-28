@@ -166,9 +166,18 @@ const fbListen = async () => {
 			return
 		}
 
-		const chatgptRole = matchedKeyword ? matchedKeyword : Object.keys(CHATGPT_ROLES)[0]
-		const messageQueue = (matchedKeyword ? threadAnsQueue : threadMsgQueue).getAllMessagesFromThread(message.threadId);
-		const gptQuestion = matchedKeyword ? question : null;
+		let chatgptRole = matchedKeyword ? matchedKeyword : Object.keys(CHATGPT_ROLES)[0];
+		let messageQueue = threadAnsQueue.getAllMessagesFromThread(message.threadId);
+		let gptQuestion: string | null = question;
+
+		if (message.sourceMessage) {
+			messageQueue = [{role: "user", content: message.sourceMessage.body}];
+		}
+
+		if (!matchedKeyword) {
+			messageQueue = threadMsgQueue.getAllMessagesFromThread(message.threadId);
+			gptQuestion = null;
+		}
 
 		getGPTReply(chatgptRole, gptQuestion, messageQueue).then((chatgptReply) => {
 			console.log(message.threadId, " A:", chatgptReply);
