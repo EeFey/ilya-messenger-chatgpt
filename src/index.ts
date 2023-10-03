@@ -7,6 +7,8 @@ import Api from 'ts-messenger-api/dist/lib/api'
 
 import { ThreadMessageQueue } from './utils/ThreadMessageQueue';
 import { Message } from './interfaces/Message';
+import { AvailableGPTFunctions } from './interfaces/AvailableGPTFunctions';
+import google from 'googlethis';
 
 const { Configuration, OpenAIApi } = require("openai");
 
@@ -29,13 +31,55 @@ let retryLoginCount: number = 0;
 const threadMsgQueue = new ThreadMessageQueue(MESSAGE_QUEUE_SIZE, MAX_REQUEST_LENGTH);
 const threadAnsQueue = new ThreadMessageQueue(ANSWER_QUEUE_SIZE);
 
+async function getWebSearch(query: string) {
+  const options = {
+    page: 0,
+    safe: false, // Safe Search
+    parse_ads: false, // If set to true sponsored results will be parsed
+    additional_params: { 
+      hl: 'en' // Set the language of the search to English
+    }
+  }
+	const response = await google.search(query, options);
+	let result = "";
+
+	if (response.featured_snippet.description) {
+		result = response.featured_snippet.description;
+	}
+
+	if (response.results.length) {
+		const results = response.results.slice(0,2).map(result => result.title + " - " + result.description );
+		result = JSON.stringify(results);
+	}
+
+	console.log("Web Search Result: ", result);
+	return result;
+}
+
 const getGPTReply = async (chatgptRole: string, message?: string | null, messageQueue?: Message[] | null) => {
 	const configuration = new Configuration({
 		apiKey: process.env.OPENAI_API_KEY,
 	});
 	const openai = new OpenAIApi(configuration);
 
-	let messages = [{"role": "system", "content": CHATGPT_ROLES[chatgptRole]}];
+	let messages: Message[] = [{"role": "system", "content": CHATGPT_ROLES[chatgptRole]}];
+	const functions = [
+		{
+				"name": "get_web_search",
+				"description": "Get the latest information",
+				"parameters": {
+						"type": "object",
+						"properties": {
+								"query": {
+										"type": "string",
+										"description": "The query to search for",
+								},
+						},
+						"required": ["query"],
+				},
+		}
+	];
+
 	if (messageQueue) messages = messages.concat(messageQueue);
 	if (message) messages.push({role: "user", content: message});
 
@@ -44,9 +88,41 @@ const getGPTReply = async (chatgptRole: string, message?: string | null, message
 		temperature: CHATGPT_TEMPERATURE,
 		max_tokens: CHATGPT_MAX_TOKENS,
 		messages: messages,
+		functions: functions,
+		function_call: "auto",
 	});
-	return completion.data.choices[0].message.content;
+
+	const responseMessage = completion.data.choices[0].message;
+
+	if (responseMessage.function_call) {
+		const availableFunctions: AvailableGPTFunctions = {
+				get_web_search: getWebSearch,
+		};
+		const functionName = responseMessage.function_call.name as keyof AvailableGPTFunctions;
+		const functionToCall = availableFunctions[functionName];
+		const functionArgs = JSON.parse(responseMessage.function_call.arguments);
+		const functionResponse = await functionToCall(functionArgs.query);
+
+		if (!functionResponse && responseMessage.content) return responseMessage.content;
+
+		messages.splice(1, messageQueue ? messageQueue.length : 0)
+		messages.push(responseMessage);
+		messages.push({
+				"role": "function",
+				"name": functionName,
+				"content": functionResponse,
+		});
+		const secondResponse = await openai.createChatCompletion({
+				model: "gpt-3.5-turbo",
+				messages: messages,
+		});
+
+		return secondResponse.data.choices[0].message.content;
+	}
+
+	return responseMessage.content;
 }
+
 
 const findKeyword = (string: string, keywords: string[]) => {
 	for(var keyword of keywords) {
