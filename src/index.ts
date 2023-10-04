@@ -45,9 +45,8 @@ async function getWebSearch(query: string) {
 
 	if (response.featured_snippet.description) {
 		result = response.featured_snippet.description;
-	}
-
-	if (response.results.length) {
+	} 
+	else if (response.results.length) {
 		const results = response.results.slice(0,2).map(result => result.title + " - " + result.description );
 		result = JSON.stringify(results);
 	}
