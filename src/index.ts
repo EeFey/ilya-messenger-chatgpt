@@ -8,7 +8,7 @@ import Api from 'ts-messenger-api/dist/lib/api'
 import { ThreadMessageQueue } from './utils/ThreadMessageQueue';
 import { Message } from './interfaces/Message';
 import { AvailableGPTFunctions } from './interfaces/AvailableGPTFunctions';
-import google from 'googlethis';
+import { WebSearcher } from './utils/WebSearcher';
 
 const { Configuration, OpenAIApi } = require("openai");
 
@@ -31,29 +31,7 @@ let retryLoginCount: number = 0;
 const threadMsgQueue = new ThreadMessageQueue(MESSAGE_QUEUE_SIZE, MAX_REQUEST_LENGTH);
 const threadAnsQueue = new ThreadMessageQueue(ANSWER_QUEUE_SIZE);
 
-async function getWebSearch(query: string) {
-  const options = {
-    page: 0,
-    safe: false, // Safe Search
-    parse_ads: false, // If set to true sponsored results will be parsed
-    additional_params: { 
-      hl: 'en' // Set the language of the search to English
-    }
-  }
-	const response = await google.search(query, options);
-	let result = "";
-
-	if (response.featured_snippet.description) {
-		result = response.featured_snippet.description;
-	} 
-	else if (response.results.length) {
-		const results = response.results.slice(0,2).map(result => result.title + " - " + result.description );
-		result = JSON.stringify(results);
-	}
-
-	console.log("Web Search Result: ", result);
-	return result;
-}
+const webSearcher = new WebSearcher();
 
 const getGPTReply = async (chatgptRole: string, message?: string | null, messageQueue?: Message[] | null) => {
 	const configuration = new Configuration({
@@ -95,7 +73,7 @@ const getGPTReply = async (chatgptRole: string, message?: string | null, message
 
 	if (responseMessage.function_call) {
 		const availableFunctions: AvailableGPTFunctions = {
-				get_web_search: getWebSearch,
+				get_web_search: webSearcher.getWebSearch,
 		};
 		const functionName = responseMessage.function_call.name as keyof AvailableGPTFunctions;
 		const functionToCall = availableFunctions[functionName];
