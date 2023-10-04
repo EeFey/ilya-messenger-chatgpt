@@ -7,14 +7,13 @@ import Api from 'ts-messenger-api/dist/lib/api'
 
 import { ThreadMessageQueue } from './utils/ThreadMessageQueue';
 import { Message } from './interfaces/Message';
-import { AvailableGPTFunctions } from './interfaces/AvailableGPTFunctions';
+import { AvailableGPTFunctions, GPTFunctionDefinition } from './interfaces/GPTFunctions';
 import { WebSearcher } from './utils/WebSearcher';
 
-const { Configuration, OpenAIApi } = require("openai");
+import { Roles } from './interfaces/Roles';
+import { ChatGPT } from './utils/ChatGPT';
 
-const CHATGPT_MAX_TOKENS: number = parseInt(process.env.CHATGPT_MAX_TOKENS!);
-const CHATGPT_TEMPERATURE: number = parseFloat(process.env.CHATGPT_TEMPERATURE!);
-const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROLES!);
+const CHATGPT_ROLES: Roles = JSON.parse(process.env.CHATGPT_ROLES!);
 
 const MESSAGE_QUEUE_SIZE: number = parseInt(process.env.MESSAGE_QUEUE_SIZE!);
 const ANSWER_QUEUE_SIZE: number = parseInt(process.env.ANSWER_QUEUE_SIZE!);
@@ -33,72 +32,26 @@ const threadAnsQueue = new ThreadMessageQueue(ANSWER_QUEUE_SIZE);
 
 const webSearcher = new WebSearcher();
 
-const getGPTReply = async (chatgptRole: string, message?: string | null, messageQueue?: Message[] | null) => {
-	const configuration = new Configuration({
-		apiKey: process.env.OPENAI_API_KEY,
-	});
-	const openai = new OpenAIApi(configuration);
+const availableFunctions: AvailableGPTFunctions = {
+  get_web_search: webSearcher.getWebSearch,
+};
 
-	let messages: Message[] = [{"role": "system", "content": CHATGPT_ROLES[chatgptRole]}];
-	const functions = [
-		{
-				"name": "get_web_search",
-				"description": "Get the latest information",
-				"parameters": {
-						"type": "object",
-						"properties": {
-								"query": {
-										"type": "string",
-										"description": "The query to search for",
-								},
-						},
-						"required": ["query"],
-				},
-		}
-	];
+const functionDefinitions: GPTFunctionDefinition[] = [
+  {
+    name: "get_web_search",
+    description: "Get the latest information from google",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The query to search for" },
+      },
+      required: ["query"],
+    },
+  },
+];
 
-	if (messageQueue) messages = messages.concat(messageQueue);
-	if (message) messages.push({role: "user", content: message});
+const chatGPT = new ChatGPT(availableFunctions, functionDefinitions);
 
-	const completion = await openai.createChatCompletion({
-		model: process.env.CHATGPT_MODEL,
-		temperature: CHATGPT_TEMPERATURE,
-		max_tokens: CHATGPT_MAX_TOKENS,
-		messages: messages,
-		functions: functions,
-		function_call: "auto",
-	});
-
-	const responseMessage = completion.data.choices[0].message;
-
-	if (responseMessage.function_call) {
-		const availableFunctions: AvailableGPTFunctions = {
-				get_web_search: webSearcher.getWebSearch,
-		};
-		const functionName = responseMessage.function_call.name as keyof AvailableGPTFunctions;
-		const functionToCall = availableFunctions[functionName];
-		const functionArgs = JSON.parse(responseMessage.function_call.arguments);
-		const functionResponse = await functionToCall(functionArgs.query);
-
-		if (!functionResponse && responseMessage.content) return responseMessage.content;
-
-		messages.splice(1, messageQueue ? messageQueue.length : 0)
-		messages.push(responseMessage);
-		messages.push({
-				"role": "function",
-				"name": functionName,
-				"content": functionResponse,
-		});
-		const secondResponse = await openai.createChatCompletion({
-				model: "gpt-3.5-turbo",
-				messages: messages,
-		});
-
-		return secondResponse.data.choices[0].message.content;
-	}
-
-	return responseMessage.content;
-}
 
 
 const findKeyword = (string: string, keywords: string[]) => {
@@ -232,11 +185,11 @@ const fbListen = async () => {
 			gptQuestion = null;
 		}
 
-		getGPTReply(chatgptRole, gptQuestion, messageQueue).then((chatgptReply) => {
-			console.log(message.threadId, " A:", chatgptReply);
-			threadAnsQueue.enqueueMessageToThread(message.threadId, {role: "assistant", content: chatgptReply});
+		chatGPT.getReply(CHATGPT_ROLES[chatgptRole], gptQuestion, messageQueue, true).then((chatGPTReply) => {
+			console.log(message.threadId, " A:", chatGPTReply);
+			threadAnsQueue.enqueueMessageToThread(message.threadId, {role: "assistant", content: chatGPTReply});
 
-			api?.sendMessage({ body: chatgptReply }, message.threadId);
+			api?.sendMessage({ body: chatGPTReply }, message.threadId);
 			api?.markAsRead(message.threadId);
 		}).catch((error) => {
 			console.log(error);
