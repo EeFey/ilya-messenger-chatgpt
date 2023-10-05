@@ -21,6 +21,7 @@ const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
 const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
 const FB_CHECK_ACTIVE_EVERY: number = parseInt(process.env.FB_CHECK_ACTIVE_EVERY!);
 const AUTO_REPLY_CHANCE: number = parseFloat(process.env.AUTO_REPLY_CHANCE!);
+const WEB_SEARCH_ROLES: string[] = JSON.parse(process.env.WEB_SEARCH_ROLES!);
 
 let api: Api | null = null;
 let listener: EventEmitter | undefined = undefined;
@@ -185,7 +186,8 @@ const fbListen = async () => {
 			gptQuestion = null;
 		}
 
-		chatGPT.getReply(CHATGPT_ROLES[chatgptRole], gptQuestion, messageQueue, true).then((chatGPTReply) => {
+		const webSearchEnabled = WEB_SEARCH_ROLES.includes(chatgptRole);
+		chatGPT.getReply(CHATGPT_ROLES[chatgptRole], gptQuestion, messageQueue, webSearchEnabled).then((chatGPTReply) => {
 			console.log(message.threadId, " A:", chatGPTReply);
 			threadAnsQueue.enqueueMessageToThread(message.threadId, {role: "assistant", content: chatGPTReply});
 
