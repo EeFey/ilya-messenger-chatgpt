@@ -22,6 +22,7 @@ const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
 const FB_CHECK_ACTIVE_EVERY: number = parseInt(process.env.FB_CHECK_ACTIVE_EVERY!);
 const AUTO_REPLY_CHANCE: number = parseFloat(process.env.AUTO_REPLY_CHANCE!);
 const WEB_SEARCH_ROLES: string[] = JSON.parse(process.env.WEB_SEARCH_ROLES!);
+const ONLINE_HOURS: number[] = JSON.parse(process.env.ONLINE_HOURS!);
 
 let api: Api | null = null;
 let listener: EventEmitter | undefined = undefined;
@@ -200,8 +201,11 @@ const fbListen = async () => {
 }
 
 const fb_check_active_interval = setInterval((): void => {
-	console.log("Checking if FB api is active");
-	restartListener();
+	const currentHour = new Date().getHours();
+	if ((currentHour >= ONLINE_HOURS[0] && currentHour <= 23) || (currentHour >= 0 && currentHour < ONLINE_HOURS[1])) {
+		console.log("Checking if FB api is active");
+		restartListener();
+	}
 }, FB_CHECK_ACTIVE_EVERY);
 
 const catchErrors = (fn: any) => {
