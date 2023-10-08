@@ -202,8 +202,11 @@ const fbListen = async () => {
 
 const fb_check_active_interval = setInterval((): void => {
 	const currentHour = new Date().getHours();
-	if ((currentHour >= ONLINE_HOURS[0] && currentHour <= 23) || (currentHour >= 0 && currentHour < ONLINE_HOURS[1])) {
-		console.log("Checking if FB api is active");
+	const withinActiveHour = (ONLINE_HOURS[0] > ONLINE_HOURS[1])
+		? (currentHour >= ONLINE_HOURS[0] || currentHour < ONLINE_HOURS[1])
+		: (currentHour >= ONLINE_HOURS[0] && currentHour <= ONLINE_HOURS[1]);
+	if (withinActiveHour) {
+		console.log("Check if FB api is active");
 		restartListener();
 	}
 }, FB_CHECK_ACTIVE_EVERY);
