@@ -1,22 +1,19 @@
-require('dotenv').config()
-
 const { Configuration, OpenAIApi } = require("openai");
 
-const CHATGPT_MAX_TOKENS: number = parseInt(process.env.CHATGPT_MAX_TOKENS!);
-const CHATGPT_TEMPERATURE: number = parseFloat(process.env.CHATGPT_TEMPERATURE!);
+import { OPENAI_API_KEY, CHATGPT_MODEL, CHATGPT_MAX_TOKENS, CHATGPT_TEMPERATURE } from '../config/config';
 
 import { Message } from '../interfaces/Message';
 import { AvailableGPTFunctions, GPTFunctionDefinition } from '../interfaces/GPTFunctions';
 
 export class ChatGPT {
-  private openai: typeof OpenAIApi;
+  private readonly openai: typeof OpenAIApi;
 
   constructor(
-    private availableFunctions: AvailableGPTFunctions,
-    private functionDefinitions: GPTFunctionDefinition[]
+    private readonly availableFunctions: AvailableGPTFunctions,
+    private readonly functionDefinitions: GPTFunctionDefinition[]
   ) {
     const configuration = new Configuration({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: OPENAI_API_KEY,
     });
     this.openai = new OpenAIApi(configuration);
   }
@@ -25,19 +22,19 @@ export class ChatGPT {
     messages: Message[],
     useFunctions: boolean = false
   ) {
-    const options: any = {
-      model: process.env.CHATGPT_MODEL,
+    const request: any = {
+      model: CHATGPT_MODEL,
       temperature: CHATGPT_TEMPERATURE,
       max_tokens: CHATGPT_MAX_TOKENS,
       messages,
     };
 
     if (useFunctions) {
-      options.functions = this.functionDefinitions;
-      options.function_call = "auto";
+      request.functions = this.functionDefinitions;
+      request.function_call = "auto";
     }
 
-    return await this.openai.createChatCompletion(options);
+    return await this.openai.createChatCompletion(request);
   }
 
   public async getReply(

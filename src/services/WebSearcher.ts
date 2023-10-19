@@ -1,7 +1,7 @@
 import google from 'googlethis';
 
 export class WebSearcher {
-  private options: object;
+  private readonly options: object;
 
   constructor() {
     this.options = {

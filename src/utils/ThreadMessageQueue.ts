@@ -2,16 +2,15 @@ import { MessageQueue } from './MessageQueue';
 import { Message } from '../interfaces/Message';
 
 export class ThreadMessageQueue {
-  private threadQueues: Map<string, MessageQueue> = new Map();
-  private maxQueueSize: number;
-  private maxMessageLength: number;
+  private readonly threadQueues: Map<string, MessageQueue> = new Map();
 
-  constructor(maxQueueSize: number, maxMessageLength: number = Number.MAX_SAFE_INTEGER) {
+  constructor(
+    private readonly maxQueueSize: number,
+    private readonly maxMessageLength: number = Number.MAX_SAFE_INTEGER
+  ) {
     if (maxQueueSize < 0) {
       throw new Error("Max queue size must be non-negative");
     }
-    this.maxQueueSize = maxQueueSize;
-    this.maxMessageLength = maxMessageLength;
   }
 
   enqueueMessageToThread(threadId: string, message: Message): void {
@@ -55,13 +54,13 @@ export class ThreadMessageQueue {
     return true;
   }
 
-  getAllMessagesFromThread(threadId: string): Message[] | undefined {
+  getAllMessagesFromThread(threadId: string): Message[] | null {
     const queue = this.threadQueues.get(threadId);
 
     if (queue) {
       return queue.getAllMessages();
     }
 
-    return undefined;
+    return null;
   }
 }

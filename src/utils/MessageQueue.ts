@@ -1,16 +1,15 @@
 import { Message } from '../interfaces/Message';
 
 export class MessageQueue {
-  private messages: Message[] = [];
-  private maxQueueSize: number;
-  private maxMessageLength: number;
+  private readonly messages: Message[] = [];
 
-  constructor(maxQueueSize: number, maxMessageLength: number = Number.MAX_SAFE_INTEGER) {
+  constructor(
+    private readonly maxQueueSize: number,
+    private readonly maxMessageLength: number = Number.MAX_SAFE_INTEGER
+  ) {
     if (maxQueueSize < 0) {
       throw new Error("Max queue size must be non-negative");
     }
-    this.maxQueueSize = maxQueueSize;
-    this.maxMessageLength = maxMessageLength;
   }
 
   enqueueMessage(item: Message): void {
