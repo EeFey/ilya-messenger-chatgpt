@@ -45,6 +45,7 @@ export class FacebookListenerManager {
   }
 
   async listen(): Promise<void> {
+    this.listener?.removeAllListeners();
     try {
       this.listener = await this.api?.listen();
     } catch (error) {
@@ -67,6 +68,5 @@ export class FacebookListenerManager {
 
   stopListening(): void {
     this.api?.stopListening();
-    this.listener?.removeAllListeners();
   }
 }
