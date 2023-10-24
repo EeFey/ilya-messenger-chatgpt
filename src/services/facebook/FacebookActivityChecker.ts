@@ -13,7 +13,7 @@ export class FacebookActivityChecker {
 
   constructor() {
     this.fbLoginManager = new FacebookLoginManager();
-    this.fbListenerManager = new FacebookListenerManager(this.fbLoginManager.apiInstance);
+    this.fbListenerManager = new FacebookListenerManager(this.fbLoginManager.apiInstance, this.restartListener.bind(this));
     this.fb_check_active_interval = setInterval(this.checkActivity.bind(this), FB_CHECK_ACTIVE_EVERY);
     this.restartListener();
   }
