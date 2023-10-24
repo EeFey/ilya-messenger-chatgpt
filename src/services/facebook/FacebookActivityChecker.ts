@@ -9,12 +9,12 @@ export class FacebookActivityChecker {
   private readonly fbLoginManager: FacebookLoginManager;
   private readonly fbListenerManager: FacebookListenerManager;
   private retryLoginCount: number = 0;
-  private fb_check_active_interval: NodeJS.Timeout;
+  private fbCheckActiveInterval: NodeJS.Timeout;
 
   constructor() {
     this.fbLoginManager = new FacebookLoginManager();
     this.fbListenerManager = new FacebookListenerManager(this.fbLoginManager.apiInstance, this.restartListener.bind(this));
-    this.fb_check_active_interval = setInterval(this.checkActivity.bind(this), FB_CHECK_ACTIVE_EVERY);
+    this.fbCheckActiveInterval = setInterval(this.checkActivity.bind(this), FB_CHECK_ACTIVE_EVERY);
     this.restartListener();
   }
 
@@ -34,8 +34,8 @@ export class FacebookActivityChecker {
       console.log(error);
       console.log("Caught Error, will retry to login again");
       if (this.retryLoginCount >= MAX_LOGIN_RETRY) {
-        console.log("Exceeded 3 login attempt. Gracefully exiting");
-        clearInterval(this.fb_check_active_interval);
+        console.log("Exceeded ${MAX_LOGIN_RETRY} login attempt. Gracefully exiting");
+        clearInterval(this.fbCheckActiveInterval);
       }
       this.retryLoginCount += 1;
     }
