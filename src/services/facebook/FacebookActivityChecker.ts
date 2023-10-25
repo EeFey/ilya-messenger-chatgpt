@@ -34,7 +34,7 @@ export class FacebookActivityChecker {
       console.log(error);
       console.log("Caught Error, will retry to login again");
       if (this.retryLoginCount >= MAX_LOGIN_RETRY) {
-        console.log("Exceeded ${MAX_LOGIN_RETRY} login attempt. Gracefully exiting");
+        console.log(`Exceeded ${MAX_LOGIN_RETRY} login attempt. Gracefully exiting`);
         clearInterval(this.fbCheckActiveInterval);
       }
       this.retryLoginCount += 1;
