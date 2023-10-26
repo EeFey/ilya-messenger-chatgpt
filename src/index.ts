@@ -7,12 +7,13 @@ import Api from 'ts-messenger-api/dist/lib/api'
 
 import { ThreadMessageQueue } from './utils/ThreadMessageQueue';
 import { Message } from './interfaces/Message';
+import { AvailableGPTFunctions, GPTFunctionDefinition } from './interfaces/GPTFunctions';
+import { WebSearcher } from './utils/WebSearcher';
 
-const { Configuration, OpenAIApi } = require("openai");
+import { Roles } from './interfaces/Roles';
+import { ChatGPT } from './utils/ChatGPT';
 
-const CHATGPT_MAX_TOKENS: number = parseInt(process.env.CHATGPT_MAX_TOKENS!);
-const CHATGPT_TEMPERATURE: number = parseFloat(process.env.CHATGPT_TEMPERATURE!);
-const CHATGPT_ROLES: Record<string, string> = JSON.parse(process.env.CHATGPT_ROLES!);
+const CHATGPT_ROLES: Roles = JSON.parse(process.env.CHATGPT_ROLES!);
 
 const MESSAGE_QUEUE_SIZE: number = parseInt(process.env.MESSAGE_QUEUE_SIZE!);
 const ANSWER_QUEUE_SIZE: number = parseInt(process.env.ANSWER_QUEUE_SIZE!);
@@ -20,6 +21,8 @@ const MIN_RESPONSE_TIME: number = parseInt(process.env.MIN_RESPONSE_TIME!);
 const MAX_REQUEST_LENGTH: number = parseInt(process.env.MAX_REQUEST_LENGTH!);
 const FB_CHECK_ACTIVE_EVERY: number = parseInt(process.env.FB_CHECK_ACTIVE_EVERY!);
 const AUTO_REPLY_CHANCE: number = parseFloat(process.env.AUTO_REPLY_CHANCE!);
+const WEB_SEARCH_ROLES: string[] = JSON.parse(process.env.WEB_SEARCH_ROLES!);
+const ONLINE_HOURS: number[] = JSON.parse(process.env.ONLINE_HOURS!);
 
 let api: Api | null = null;
 let listener: EventEmitter | undefined = undefined;
@@ -29,24 +32,29 @@ let retryLoginCount: number = 0;
 const threadMsgQueue = new ThreadMessageQueue(MESSAGE_QUEUE_SIZE, MAX_REQUEST_LENGTH);
 const threadAnsQueue = new ThreadMessageQueue(ANSWER_QUEUE_SIZE);
 
-const getGPTReply = async (chatgptRole: string, message?: string | null, messageQueue?: Message[] | null) => {
-	const configuration = new Configuration({
-		apiKey: process.env.OPENAI_API_KEY,
-	});
-	const openai = new OpenAIApi(configuration);
+const webSearcher = new WebSearcher();
 
-	let messages = [{"role": "system", "content": CHATGPT_ROLES[chatgptRole]}];
-	if (messageQueue) messages = messages.concat(messageQueue);
-	if (message) messages.push({role: "user", content: message});
+const availableFunctions: AvailableGPTFunctions = {
+  get_web_search: webSearcher.getWebSearch,
+};
 
-	const completion = await openai.createChatCompletion({
-		model: process.env.CHATGPT_MODEL,
-		temperature: CHATGPT_TEMPERATURE,
-		max_tokens: CHATGPT_MAX_TOKENS,
-		messages: messages,
-	});
-	return completion.data.choices[0].message.content;
-}
+const functionDefinitions: GPTFunctionDefinition[] = [
+  {
+    name: "get_web_search",
+    description: "Get the latest information from google",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The query to search for" },
+      },
+      required: ["query"],
+    },
+  },
+];
+
+const chatGPT = new ChatGPT(availableFunctions, functionDefinitions);
+
+
 
 const findKeyword = (string: string, keywords: string[]) => {
 	for(var keyword of keywords) {
@@ -179,11 +187,12 @@ const fbListen = async () => {
 			gptQuestion = null;
 		}
 
-		getGPTReply(chatgptRole, gptQuestion, messageQueue).then((chatgptReply) => {
-			console.log(message.threadId, " A:", chatgptReply);
-			threadAnsQueue.enqueueMessageToThread(message.threadId, {role: "assistant", content: chatgptReply});
+		const webSearchEnabled = WEB_SEARCH_ROLES.includes(chatgptRole);
+		chatGPT.getReply(CHATGPT_ROLES[chatgptRole], gptQuestion, messageQueue, webSearchEnabled).then((chatGPTReply) => {
+			console.log(message.threadId, " A:", chatGPTReply);
+			threadAnsQueue.enqueueMessageToThread(message.threadId, {role: "assistant", content: chatGPTReply});
 
-			api?.sendMessage({ body: chatgptReply }, message.threadId);
+			api?.sendMessage({ body: chatGPTReply }, message.threadId);
 			api?.markAsRead(message.threadId);
 		}).catch((error) => {
 			console.log(error);
@@ -192,8 +201,14 @@ const fbListen = async () => {
 }
 
 const fb_check_active_interval = setInterval((): void => {
-	console.log("Checking if FB api is active");
-	restartListener();
+	const currentHour = new Date().getHours();
+	const withinActiveHour = (ONLINE_HOURS[0] > ONLINE_HOURS[1])
+		? (currentHour >= ONLINE_HOURS[0] || currentHour < ONLINE_HOURS[1])
+		: (currentHour >= ONLINE_HOURS[0] && currentHour <= ONLINE_HOURS[1]);
+	if (withinActiveHour) {
+		console.log("Check if FB api is active");
+		restartListener();
+	}
 }, FB_CHECK_ACTIVE_EVERY);
 
 const catchErrors = (fn: any) => {

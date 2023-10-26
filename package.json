@@ -10,9 +10,9 @@
   },
   "keywords": [
     "facebook",
-		"messenger",
-		"chatgpt",
-		"openai"
+    "messenger",
+    "chatgpt",
+    "openai"
   ],
   "author": "EeFey",
   "license": "ISC",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "dotenv": "^16.0.3",
+    "googlethis": "^1.8.0",
     "json5": "^2.2.3",
     "openai": "^3.2.1",
     "ts-messenger-api": "github:makiprogrammer/ts-messenger-api"
