@@ -68,6 +68,7 @@ export class MessageHandler {
   }
 
   async sendMessage(body: string, threadId: string) {
+      console.log(threadId, " A:", body);
       this.api.sendMessage({ body }, threadId);
       await this.markAsRead(threadId);
   }
@@ -78,7 +79,6 @@ export class MessageHandler {
     const isWebSearchEnabled = WEB_SEARCH_ROLES.includes(role);
     try {
       const chatGPTReply = await this.chatGPT.getReply(CHATGPT_ROLES[role], gptQuestion, messageQueue, isWebSearchEnabled);
-      console.log(message.threadId, " A:", chatGPTReply);
       this.threadAnsQueue.enqueueMessageToThread(message.threadId, {role: "assistant", content: chatGPTReply});
       await this.sendMessage(chatGPTReply, message.threadId);
     } catch (error) {
