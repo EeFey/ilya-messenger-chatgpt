@@ -1,5 +1,5 @@
-import Api from 'ts-messenger-api/dist/lib/api'
 import { ThreadMessageQueue } from '../../utils/ThreadMessageQueue';
+import { FacebookAPI } from '../facebook/FacebookAPI';
 
 import { ChatGPT } from '../ChatGPT';
 import { delay } from '../../utils/Utils';
@@ -7,14 +7,13 @@ import { ReplyStrategy } from './ReplyStrategy';
 
 import { CHATGPT_ROLES, MIN_RESPONSE_TIME, AUTO_REPLY_CHANCE, WEB_SEARCH_ROLES, MAX_REQUEST_LENGTH } from '../../config/config';
 
-const MARK_AS_READ_DELAY: number = 3000;
 
 export class MessageHandler {
   private lastAnswered = new Date();
   private readonly replyStrategy: ReplyStrategy;
   
   constructor(
-    private api: Api,
+    private readonly fbAPI: FacebookAPI,
     private readonly chatGPT: ChatGPT,
     private readonly threadMsgQueue: ThreadMessageQueue,
     private readonly threadAnsQueue: ThreadMessageQueue
@@ -22,14 +21,10 @@ export class MessageHandler {
     this.replyStrategy = new ReplyStrategy(threadMsgQueue, threadAnsQueue);
   }
 
-  set apiInstance(api: Api) {
-    this.api = api;
-  }
-
   async handleIncomingMessage(message: any): Promise<void> {
     console.log(message.body);
 
-    this.markAsRead(message.threadId);
+    this.fbAPI.markAsRead(message.threadId);
 
     this.threadMsgQueue.enqueueMessageToThread(message.threadId, {role: "user", content: message.body});
 
@@ -40,12 +35,6 @@ export class MessageHandler {
     // if (message.body.length <= 0) return;
 
     await this.processQuestion(message, matchedKeyword);
-  }
-
-  async markAsRead(threadId: string): Promise<void> {
-    this.api.markAsRead(threadId);
-    await delay(MARK_AS_READ_DELAY);
-    this.api.markAsRead(threadId);
   }
 
   async processQuestion(message: any, matchedKeyword: string | null): Promise<void> {
@@ -68,9 +57,8 @@ export class MessageHandler {
   }
 
   async sendMessage(body: string, threadId: string) {
-      console.log(threadId, " A:", body);
-      this.api.sendMessage({ body }, threadId);
-      await this.markAsRead(threadId);
+    console.log(threadId, " A:", body);
+    this.fbAPI.sendMessage(body, threadId);
   }
 
   private async chatGPTReply(message: any, matchedKeyword: string | null, question: string) {
