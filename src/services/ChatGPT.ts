@@ -59,19 +59,16 @@ export class ChatGPT {
     useFunctions: boolean = false
   ) {
     const request = this.buildChatCompletionRequest(messages, useFunctions);
+    let error: any;
     for (let i = 0; i < ChatGPT.MAX_RETRIES; i++) {
       try {
         return await this.openai.createChatCompletion(request);
       } catch (error) {
-        if (this.isRateLimitError(error)) {
-          console.log('Rate limit hit. Retrying...');
-          await delay(ChatGPT.INITIAL_RETRY_DELAY * (i + 1));
-        } else {
-          throw error;
-        }
+        await delay(ChatGPT.INITIAL_RETRY_DELAY * (i + 1));
+        error = error;
       }
     }
-    throw new Error('Rate limit exceeded. Please try again later.');
+    throw new Error(error);
   }
 
   private buildChatCompletionRequest(
@@ -91,10 +88,6 @@ export class ChatGPT {
     }
 
     return request;
-  }
-
-  private isRateLimitError(error: any): boolean {
-    return error.response && error.response.status === 429;
   }
 
 }
