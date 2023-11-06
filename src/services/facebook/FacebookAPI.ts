@@ -5,8 +5,6 @@ import { EventEmitter } from 'events';
 import { FB_COOKIES, FB_EMAIL, FB_PASSWORD } from '../../config/config';
 import { delay } from '../../utils/Utils';
 
-const MARK_AS_READ_DELAY: number = 3000;
-
 export class FacebookAPI {
 
   constructor(
@@ -35,8 +33,9 @@ export class FacebookAPI {
   }
 
   async markAsRead(threadId: string): Promise<void> {
+    await delay(100);
     this.api?.markAsRead(threadId);
-    await delay(MARK_AS_READ_DELAY);
+    await delay(3000);
     this.api?.markAsRead(threadId);
   }
 
