@@ -48,7 +48,7 @@ export class FacebookListenerManager {
   async listen(): Promise<void> {
     this.removeListeners();
 
-    this.listener = await this.fbAPI.listen();
+    this.listener = this.fbAPI.listenerInstance;
     if (!this.listener) {
       this.handleListenerError("error", "Facebook listener is undefined")
       return;

@@ -8,24 +8,18 @@ import { delay } from '../../utils/Utils';
 export class FacebookAPI {
 
   constructor(
-    private api: Api | null = null 
+    private api: Api | null = null,
+    private listener?: EventEmitter
   ) {}
 
-  async checkActive(): Promise<void> {
-    if (this.api?.isActive()) return
-    await this.login();
-    await this.listen();
+  get listenerInstance(): EventEmitter | undefined {
+    return this.listener;
   }
 
-  // listener may be disconnected after a while, so we need to re-listen
-  async listen(): Promise<EventEmitter | undefined> {
-    if (!this.api) return undefined;
-    try {
-      return await this.api.listen();
-    } catch (error) {
-      console.log(error);
-    }
-    return undefined;
+  async checkActive(): Promise<void> {
+    if (this.api?.isActive()) return;
+    await this.login();
+    await this.listen();
   }
 
   stopListening(): void {
@@ -45,7 +39,7 @@ export class FacebookAPI {
     this.markAsRead(threadId);
   }
 
-  async login(): Promise<void> {
+  private async login(): Promise<void> {
     this.api = null;
     try {
       if (!FB_COOKIES) throw Error('FB_COOKIES undefined. Credentials will be used');
@@ -64,6 +58,11 @@ export class FacebookAPI {
       console.log(error);
     }
     throw Error("Unable to login to FB");
+  }
+
+  private async listen(): Promise<void> {
+    if (!this.api) throw Error("FB API is undefined");
+    this.listener = await this.api.listen();
   }
 
   private cookiesToAppState(cookies: string) {
