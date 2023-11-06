@@ -46,24 +46,34 @@ export class FacebookListenerManager {
   }
 
   async listen(): Promise<void> {
-    this.listener?.removeAllListeners();
+    this.removeListeners();
 
     this.listener = await this.fbAPI.listen();
-    if (!this.listener) throw Error('Facebook listener is undefined');
-
+    if (!this.listener) {
+      this.handleListenerError("error", "Facebook listener is undefined")
+      return;
+    }
+    
     this.listener.addListener('error', (error) => this.handleListenerError("error", error));
     this.listener.addListener('close', (close) => this.handleListenerError("close", close));
-    this.listener.addListener('message', this.messageHandler.handleIncomingMessage.bind(this.messageHandler));
+  
+    const handleIncomingMessage = this.messageHandler.handleIncomingMessage.bind(this.messageHandler);
+    this.listener.addListener('message', async (message) => {
+      try {
+        await handleIncomingMessage(message);
+      } catch (error) {
+        this.handleListenerError("message", error)
+      }
+    });
   }
 
-  stopListening(): void {
+  removeListeners(): void {
     this.listener?.removeAllListeners();
-    this.fbAPI.stopListening();
   }
 
   private handleListenerError(eventName: string, error: any): void {
     console.log(`Listener Error on ${eventName}: ${error}`);
-    this.stopListening();
+    this.removeListeners();
     this.checkActivityCallback();
   }
 }

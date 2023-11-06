@@ -58,7 +58,7 @@ export class MessageHandler {
 
   async sendMessage(body: string, threadId: string) {
     console.log(threadId, " A:", body);
-    this.fbAPI.sendMessage(body, threadId);
+    await this.fbAPI.sendMessage(body, threadId);
   }
 
   private async chatGPTReply(message: any, matchedKeyword: string | null, question: string) {

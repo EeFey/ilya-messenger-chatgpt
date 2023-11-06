@@ -20,11 +20,7 @@ export class FacebookActivityChecker {
 
   private async restartListener(): Promise<void> {
     try {
-      if (!this.fbAPI.isActive()) {
-        console.log("FB api is not active, trying to login");
-        this.fbListenerManager.stopListening();
-        await this.fbAPI.login();
-      }
+      await this.fbAPI.checkActive();
       await this.fbListenerManager.listen();
       this.retryLoginCount = 0;
     } catch (error) {

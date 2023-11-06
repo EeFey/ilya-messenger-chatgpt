@@ -13,10 +13,13 @@ export class FacebookAPI {
     private api: Api | null = null 
   ) {}
 
-  isActive(): boolean {
-    return this.api ? this.api.isActive() : false;
+  async checkActive(): Promise<void> {
+    if (this.api?.isActive()) return
+    await this.login();
+    await this.listen();
   }
 
+  // listener may be disconnected after a while, so we need to re-listen
   async listen(): Promise<EventEmitter | undefined> {
     if (!this.api) return undefined;
     try {
@@ -37,7 +40,8 @@ export class FacebookAPI {
     this.api?.markAsRead(threadId);
   }
 
-  sendMessage(body: string, threadId: string): void {
+  async sendMessage(body: string, threadId: string): Promise<void> {
+    await this.checkActive();
     this.api?.sendMessage({ body }, threadId);
     this.markAsRead(threadId);
   }
