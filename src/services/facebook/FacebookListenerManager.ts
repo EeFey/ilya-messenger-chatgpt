@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import Api from 'ts-messenger-api/dist/lib/api'
+import { FacebookAPI } from './FacebookAPI';
 import { ThreadMessageQueue } from '../../utils/ThreadMessageQueue';
 
 import { AvailableGPTFunctions, GPTFunctionDefinition } from '../../interfaces/GPTFunctions';
@@ -11,19 +11,21 @@ import { MessageHandler } from '../messaging/MessageHandler';
 import { MESSAGE_QUEUE_SIZE, ANSWER_QUEUE_SIZE, MAX_REQUEST_LENGTH } from '../../config/config';
 
 export class FacebookListenerManager {
-  private api: Api | null;
+  private readonly fbAPI: FacebookAPI;
   private listener?: EventEmitter;
   private readonly chatGPT: ChatGPT;
   private readonly threadMsgQueue: ThreadMessageQueue;
   private readonly threadAnsQueue: ThreadMessageQueue;
-  private messageHandler?: MessageHandler;
-  private readonly errorCallback: () => void;
+  private readonly messageHandler: MessageHandler;
+  private readonly checkActivityCallback: () => void;
 
-  constructor(api: Api | null, errorCallback: () => void) {
-    this.api = api;
+  constructor(fbAPI: FacebookAPI, checkActivityCallback: () => void) {
+    this.fbAPI = fbAPI;
     this.threadMsgQueue = new ThreadMessageQueue(MESSAGE_QUEUE_SIZE, MAX_REQUEST_LENGTH);
     this.threadAnsQueue = new ThreadMessageQueue(ANSWER_QUEUE_SIZE);
-    this.errorCallback = errorCallback;
+    
+    this.checkActivityCallback = checkActivityCallback;
+
     const webSearcher = new WebSearcher();
     const availableFunctions: AvailableGPTFunctions = {
       get_web_search: webSearcher.getWebSearch,
@@ -40,41 +42,38 @@ export class FacebookListenerManager {
       },
     }];
     this.chatGPT = new ChatGPT(availableFunctions, functionDefinitions);
-  }
-
-  set apiInstance(api: Api | null) {
-    this.api = api;
+    this.messageHandler = new MessageHandler(this.fbAPI, this.chatGPT, this.threadMsgQueue, this.threadAnsQueue);
   }
 
   async listen(): Promise<void> {
-    if (!this.api) throw Error('API instance is not provided.');
-    this.listener?.removeAllListeners();
+    this.removeListeners();
 
-    try {
-      this.listener = await this.api.listen();
-    } catch (error) {
-      console.log(error);
+    this.listener = this.fbAPI.listenerInstance;
+    if (!this.listener) {
+      this.handleListenerError("error", "Facebook listener is undefined")
+      return;
     }
-    if (!this.api.isActive() || !this.listener) throw Error('Unable to establish connection to Facebook.');
     
     this.listener.addListener('error', (error) => this.handleListenerError("error", error));
     this.listener.addListener('close', (close) => this.handleListenerError("close", close));
-    
-    if (!this.messageHandler) {
-      this.messageHandler = new MessageHandler(this.api, this.chatGPT, this.threadMsgQueue, this.threadAnsQueue);
-    } else {
-      this.messageHandler.apiInstance = this.api;
-    }
-
-    this.listener.addListener('message', this.messageHandler.handleIncomingMessage.bind(this.messageHandler));
+  
+    const handleIncomingMessage = this.messageHandler.handleIncomingMessage.bind(this.messageHandler);
+    this.listener.addListener('message', async (message) => {
+      try {
+        await handleIncomingMessage(message);
+      } catch (error) {
+        this.handleListenerError("message", error)
+      }
+    });
   }
 
-  stopListening(): void {
-    this.api?.stopListening();
+  removeListeners(): void {
+    this.listener?.removeAllListeners();
   }
 
   private handleListenerError(eventName: string, error: any): void {
     console.log(`Listener Error on ${eventName}: ${error}`);
-    this.errorCallback();
+    this.removeListeners();
+    this.checkActivityCallback();
   }
 }

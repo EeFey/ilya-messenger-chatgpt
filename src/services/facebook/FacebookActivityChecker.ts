@@ -1,4 +1,4 @@
-import { FacebookLoginManager } from './FacebookLoginManager';
+import { FacebookAPI } from './FacebookAPI';
 import { FacebookListenerManager } from './FacebookListenerManager';
 
 import { FB_CHECK_ACTIVE_EVERY, ONLINE_HOURS } from '../../config/config';
@@ -6,28 +6,21 @@ import { FB_CHECK_ACTIVE_EVERY, ONLINE_HOURS } from '../../config/config';
 const MAX_LOGIN_RETRY = 3;
 
 export class FacebookActivityChecker {
-  private readonly fbLoginManager: FacebookLoginManager;
+  private readonly fbAPI: FacebookAPI;
   private readonly fbListenerManager: FacebookListenerManager;
   private retryLoginCount: number = 0;
   private fbCheckActiveInterval: NodeJS.Timeout;
 
   constructor() {
-    this.fbLoginManager = new FacebookLoginManager();
-    this.fbListenerManager = new FacebookListenerManager(this.fbLoginManager.apiInstance, this.checkActivity.bind(this));
+    this.fbAPI = new FacebookAPI();
+    this.fbListenerManager = new FacebookListenerManager(this.fbAPI, this.checkActivity.bind(this));
     this.fbCheckActiveInterval = setInterval(this.checkActivity.bind(this), FB_CHECK_ACTIVE_EVERY);
-    this.restartListener();
+    this.checkActivity();
   }
 
   private async restartListener(): Promise<void> {
     try {
-      if (!this.fbLoginManager.apiInstance?.isActive()) {
-        console.log("FB api is not active, trying to login");
-        this.fbListenerManager.stopListening();
-
-        await this.fbLoginManager.login();
-        if (!this.fbLoginManager.apiInstance) throw Error("Unable to login to FB");
-        this.fbListenerManager.apiInstance = this.fbLoginManager.apiInstance;
-      }
+      await this.fbAPI.checkActive();
       await this.fbListenerManager.listen();
       this.retryLoginCount = 0;
     } catch (error) {
