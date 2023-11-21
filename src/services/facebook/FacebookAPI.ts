@@ -17,7 +17,10 @@ export class FacebookAPI {
   }
 
   async checkActive(): Promise<void> {
-    if (this.api?.isActive()) return;
+    if (this.api?.isActive()) {
+      await this.listen(); // listener may be disconnected after a while, re-listen is needed
+      return;
+    }
     await this.login();
     await this.listen();
   }
