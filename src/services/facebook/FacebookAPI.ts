@@ -16,9 +16,11 @@ export class FacebookAPI {
     return this.listener;
   }
 
-  async checkActive(): Promise<void> {
+  async checkActive(options?: { relisten: boolean }): Promise<void> {
+    const relisten = options?.relisten ?? true;
+
     if (this.api?.isActive()) {
-      await this.listen(); // listener may be disconnected after a while, re-listen is needed
+      if (relisten) await this.listen(); // listener may be disconnected after a while, re-listen is needed
       return;
     }
     await this.login();
@@ -37,7 +39,7 @@ export class FacebookAPI {
   }
 
   async sendMessage(body: string, threadId: string): Promise<void> {
-    await this.checkActive();
+    await this.checkActive({ relisten: false });
     this.api?.sendMessage({ body }, threadId);
     this.markAsRead(threadId);
   }
